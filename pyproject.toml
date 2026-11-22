@@ -1,0 +1,25 @@
+[project]
+name = "local-nctr200"
+version = "0.1.0"
+requires-python = ">=3.14"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+cache_dir = ".local/pytest"
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+cache-dir = ".local/ruff"
+extend-exclude = [".local"]
+
+[tool.ruff.lint]
+select = ["ASYNC", "B", "C4", "E", "F", "I", "PT", "RUF", "SIM", "UP", "W"]
+ignore = ["B904"]
+# Home Assistant declares entity attributes as mutable class defaults.
+extend-ignore = ["RUF012"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ASYNC109", "ASYNC110"]

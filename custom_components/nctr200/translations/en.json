@@ -1,0 +1,120 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "NCTR-200 local server",
+        "description": "Home Assistant listens on this address. Provision the controller with this host's IP and port as its server.",
+        "data": {
+          "allowed_client": "Controller address",
+          "port": "Port",
+          "host": "Listen address"
+        },
+        "data_description": {
+          "allowed_client": "IP address of the controller, or a network such as 192.168.0.0/24. Other clients are rejected.",
+          "port": "The port given to the controller when it was provisioned (20000 by default).",
+          "host": "0.0.0.0 listens on every interface."
+        }
+      }
+    },
+    "error": {
+      "invalid_client": "Enter an IP address or a network such as 192.168.0.0/24.",
+      "invalid_host": "Enter an IPv4 address.",
+      "port_in_use": "This port is in use by another program. Stop it first."
+    },
+    "abort": {
+      "single_instance_allowed": "Only one NCTR-200 controller is supported."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "allowed_client": "Controller address",
+          "port": "Port",
+          "host": "Listen address"
+        }
+      }
+    },
+    "error": {
+      "invalid_client": "Enter an IP address or a network such as 192.168.0.0/24.",
+      "invalid_host": "Enter an IPv4 address.",
+      "port_in_use": "This port is in use by another program. Stop it first."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "connection": { "name": "Connection" }
+    },
+    "climate": {
+      "boiler": {
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "room": "Room heating",
+              "ondol": "Ondol",
+              "reservation": "Reservation",
+              "away": "Away",
+              "bath": "Bath",
+              "hot_water_only": "Hot water only"
+            }
+          }
+        }
+      }
+    },
+    "number": {
+      "ondol_target": { "name": "Ondol target" },
+      "hot_water_target": { "name": "Hot water target" },
+      "heating_water_target": { "name": "Heating water target" }
+    },
+    "sensor": {
+      "room_current": { "name": "Room temperature" },
+      "heating_water_current": { "name": "Heating water temperature" },
+      "mode": {
+        "name": "Mode",
+        "state": {
+          "room": "Room heating",
+          "ondol": "Ondol",
+          "reservation": "Reservation",
+          "away": "Away",
+          "bath": "Bath",
+          "hot_water_only": "Hot water only",
+          "off": "Off"
+        }
+      },
+      "burner_level": { "name": "Burner level" },
+      "status_flags": { "name": "Status flags" },
+      "last_report": { "name": "Last state report" }
+    }
+  },
+  "exceptions": {
+    "port_unavailable": {
+      "message": "Cannot listen on port {port}: {error}"
+    },
+    "not_ready": {
+      "message": "The controller is not ready: {error}"
+    },
+    "no_ack": {
+      "message": "The controller did not acknowledge the command: {error}"
+    }
+  },
+  "services": {
+    "set_reservation": {
+      "name": "Set heating reservation",
+      "description": "Repeat: stop for the given hours, then run for the given minutes.",
+      "fields": {
+        "stop_hours": { "name": "Stop hours", "description": "1 to 24 hours." },
+        "run_minutes": { "name": "Run minutes", "description": "10 to 90 minutes." }
+      }
+    },
+    "set_schedule": {
+      "name": "Set 24-hour schedule",
+      "description": "Run during the given ranges every day, in 30-minute steps.",
+      "fields": {
+        "schedule": {
+          "name": "Schedule",
+          "description": "Comma-separated ranges, for example 00:00-09:00,18:00-24:00."
+        }
+      }
+    }
+  }
+}
