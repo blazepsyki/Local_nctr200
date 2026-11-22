@@ -19,8 +19,8 @@ The controller does not reply; it saves the settings, restarts and the setup acc
 point disappears within about a second. After that it always looks up the ABCD host
 through DNS and inserts "4" after the first three characters of the host
 (igs.krb.co.kr -> igs4.krb.co.kr). A wildcard DNS name with a throw-away first label
-survives that: http://nas.192.168.0.8.nip.io is looked up as nas4.192.168.0.8.nip.io,
-which resolves to 192.168.0.8. The controller needs Internet access for that lookup.
+survives that: http://nas.192.168.1.8.nip.io is looked up as nas4.192.168.1.8.nip.io,
+which resolves to 192.168.1.8. The controller needs Internet access for that lookup.
 """
 
 from __future__ import annotations

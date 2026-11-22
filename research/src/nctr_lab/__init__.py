@@ -1,0 +1,3 @@
+"""NCTR-200 experimental collection and analysis tools."""
+
+__version__ = "0.1.0"

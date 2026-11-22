@@ -12,7 +12,7 @@ ANY_HOST = ("", "0.0.0.0")
 
 
 async def async_lan(hass: HomeAssistant) -> tuple[str | None, str | None]:
-    """Home Assistant's own LAN address and its network, e.g. 192.168.0.0/24."""
+    """Home Assistant's own LAN address and its network, e.g. 192.168.1.0/24."""
     try:
         source = await network.async_get_source_ip(hass)
     except HomeAssistantError:

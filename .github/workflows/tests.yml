@@ -23,3 +23,5 @@ jobs:
       - run: python -m ruff format --check .
       - run: python -m ruff check .
       - run: python -m pytest -q
+      - name: Research tools
+        run: python -m unittest discover -s research/tests -q

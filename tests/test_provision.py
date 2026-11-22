@@ -14,27 +14,27 @@ from custom_components.nctr200 import provision
 
 APP_DATAGRAM = (
     b"WizFi250AirCmd:AT+WSET=0,home\rAT+WSEC=0,,secret\rAT+WNET=1\r"
-    b"AT+SCON=S,TCN,192.168.0.8,20000,,1\r"
-    b"AT+ABCD=S,TCN,http://nas.192.168.0.8.nip.io,20000,,1\r"
+    b"AT+SCON=S,TCN,192.168.1.8,20000,,1\r"
+    b"AT+ABCD=S,TCN,http://nas.192.168.1.8.nip.io,20000,,1\r"
     b"AT+FSOCK=6,15\rAT+MPROF=S\r"
 )
 LOOPBACK = ipaddress.ip_network("127.0.0.0/8")
 
 
 def test_payload_matches_the_app_format() -> None:
-    plan = provision.Plan("home", "secret", "192.168.0.8")
+    plan = provision.Plan("home", "secret", "192.168.1.8")
     assert plan.payload() == APP_DATAGRAM
     assert "AT+WSEC=0,,******" in plan.lines(mask=True)
-    assert provision.queried_name(plan.target_url) == "nas4.192.168.0.8.nip.io"
+    assert provision.queried_name(plan.target_url) == "nas4.192.168.1.8.nip.io"
     assert provision.queried_name("http://igs.krb.co.kr") == "igs4.krb.co.kr"
 
 
 @pytest.mark.parametrize(
     ("ssid", "password", "server"),
     [
-        ("", "x", "192.168.0.8"),
-        ("a,b", "x", "192.168.0.8"),
-        ("home", "pä", "192.168.0.8"),
+        ("", "x", "192.168.1.8"),
+        ("a,b", "x", "192.168.1.8"),
+        ("home", "pä", "192.168.1.8"),
         ("home", "x", "nas.local"),
     ],
 )
@@ -83,19 +83,19 @@ def make_ap(monkeypatch: pytest.MonkeyPatch) -> Iterator[Callable[..., Ap]]:
 
 def test_send_without_reply_sends_once(make_ap: Callable[..., Ap]) -> None:
     ap = make_ap()
-    result = provision.send(provision.Plan("home", "secret", "192.168.0.8"))
+    result = provision.send(provision.Plan("home", "secret", "192.168.1.8"))
     assert (result.replies, result.reset_sent, result.rejected) == ([], False, False)
     assert ap.received == [APP_DATAGRAM]
 
 
 def test_send_restarts_only_after_a_good_reply(make_ap: Callable[..., Ap]) -> None:
     ap = make_ap(b"[OK]")
-    result = provision.send(provision.Plan("home", "secret", "192.168.0.8"))
+    result = provision.send(provision.Plan("home", "secret", "192.168.1.8"))
     assert result.reset_sent
     assert ap.received[1] == b"WizFi250AirCmd:AT+MRESET\r"
 
     ap = make_ap(b"[ERROR]")
-    result = provision.send(provision.Plan("home", "secret", "192.168.0.8"))
+    result = provision.send(provision.Plan("home", "secret", "192.168.1.8"))
     assert result.rejected
     assert not result.reset_sent
     assert len(ap.received) == 1
@@ -117,7 +117,7 @@ def test_cli(
     monkeypatch.setattr(provision, "SETUP_NETWORK", LOOPBACK)
     secret = tmp_path / "pw"
     secret.write_text("secret\n", encoding="utf-8")
-    argv = ["--ssid", "home", "--server-ip", "192.168.0.8", "--password-file", str(secret)]
+    argv = ["--ssid", "home", "--server-ip", "192.168.1.8", "--password-file", str(secret)]
 
     assert provision.main(argv, ask=lambda _: "no") == 1
     assert ap.received == []
@@ -125,7 +125,7 @@ def test_cli(
     assert ap.received == [APP_DATAGRAM]
     out = capsys.readouterr().out
     assert "secret" not in out
-    assert "nas4.192.168.0.8.nip.io" in out
+    assert "nas4.192.168.1.8.nip.io" in out
 
     answers = iter(["one", "two"])
     assert provision.main(argv[:4], ask=lambda _: "SEND", ask_secret=lambda _: next(answers)) == 2

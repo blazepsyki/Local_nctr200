@@ -24,7 +24,7 @@ from .test_hub import NODE, Device
 CLIMATE = "climate.nctr_200"
 
 
-LAN = ("192.168.0.8", "192.168.0.0/24")
+LAN = ("192.168.1.8", "192.168.1.0/24")
 
 
 @pytest.fixture(autouse=True)
@@ -73,7 +73,7 @@ async def test_flow_validates_input(hass: HomeAssistant) -> None:
 
 async def test_form_suggests_lan_and_shows_server(hass: HomeAssistant) -> None:
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
-    assert result["description_placeholders"]["server"] == "http://nas.192.168.0.8.nip.io"
+    assert result["description_placeholders"]["server"] == "http://nas.192.168.1.8.nip.io"
     assert result["description_placeholders"]["port"] == "20000"
     field = next(k for k in result["data_schema"].schema if k == CONF_ALLOWED_CLIENT)
     assert field.description == {"suggested_value": LAN[1]}
@@ -116,7 +116,7 @@ async def test_options_provision(hass: HomeAssistant, monkeypatch: pytest.Monkey
         result["flow_id"], {"next_step_id": "provision"}
     )
     assert result["step_id"] == "provision"
-    user = {"ssid": "home", "password": "secret", "server_ip": "192.168.0.8"}
+    user = {"ssid": "home", "password": "secret", "server_ip": "192.168.1.8"}
 
     # Not on the krb_set network: nothing is sent.
     result = await hass.config_entries.options.async_configure(result["flow_id"], user)
@@ -132,7 +132,7 @@ async def test_options_provision(hass: HomeAssistant, monkeypatch: pytest.Monkey
     result = await hass.config_entries.options.async_configure(result["flow_id"], user)
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "provision_sent"
-    expected = provision.Plan("home", "secret", "192.168.0.8", entry.data[CONF_PORT])
+    expected = provision.Plan("home", "secret", "192.168.1.8", entry.data[CONF_PORT])
     assert ap.received == [expected.payload()]
     # The password is not kept in the entry.
     assert "secret" not in repr(entry.data) + repr(entry.options)

@@ -33,11 +33,11 @@ Home Assistant가 조절기 접속을 받을 수 있어야 합니다.
 
 | 항목 | 설명 |
 |---|---|
-| 허용할 접속 주소(선택) | 이 IP나 네트워크에서 오는 접속만 받습니다. Home Assistant가 속한 LAN 대역(예: `192.168.0.0/24`)이 미리 채워집니다. 비우면 모두 받습니다. Windows 핫스팟을 거치면 조절기가 PC 주소로 보입니다. |
+| 허용할 접속 주소(선택) | 이 IP나 네트워크에서 오는 접속만 받습니다. Home Assistant가 속한 LAN 대역(예: `192.168.1.0/24`)이 미리 채워집니다. 비우면 모두 받습니다. Windows 핫스팟을 거치면 조절기가 PC 주소로 보입니다. |
 | 포트 | 조절기가 접속할 포트. 기본 20000 |
 | 수신 주소 | 기본 `0.0.0.0`(모든 인터페이스) |
 
-설정 화면에 조절기에 넣을 서버 주소가 나옵니다(예: `http://nas.192.168.0.8.nip.io`). 설치한 뒤에도 연결 엔티티의 `provision_server`, `provision_port` 속성과 진단 파일에서 볼 수 있습니다.
+설정 화면에 조절기에 넣을 서버 주소가 나옵니다(예: `http://nas.192.168.1.8.nip.io`). 설치한 뒤에도 연결 엔티티의 `provision_server`, `provision_port` 속성과 진단 파일에서 볼 수 있습니다.
 
 ## 3. 프로비저닝
 
@@ -152,6 +152,10 @@ uv pip install -p .local/venv -r requirements_test.txt
 - `tests/test_hub.py`: 실제 TCP 연결로 가짜 조절기를 붙여 프로토콜을 확인합니다.
 - `tests/test_init.py`: 실제 Home Assistant 코어에서 설정 흐름, 프로비저닝 메뉴, 엔티티를 확인합니다.
 - `tests/test_provision.py`: 프로비저닝 데이터그램과 독립 도구를 가짜 설정 AP로 확인합니다.
+
+## 연구 자료
+
+프로토콜 분석, 실물 시험 기록, 수집 서버는 [research/](research/README.md)에 있습니다. 통합을 쓰는 데에는 필요 없습니다.
 
 ## 라이선스
 
