@@ -89,3 +89,7 @@ uv pip install -p .local/venv -r requirements_test.txt
 ```
 
 시험은 실제 TCP 연결로 가짜 조절기를 붙여 프로토콜을 확인하고(`tests/test_hub.py`), 실제 Home Assistant 코어에서 설정 흐름과 엔티티를 확인합니다(`tests/test_init.py`).
+
+## 라이선스
+
+MIT. [LICENSE](LICENSE)를 보세요.
