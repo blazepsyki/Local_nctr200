@@ -8,6 +8,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.util import dt as dt_util
 
+from .addressing import advertised_ip, async_lan
 from .const import CONF_ALLOWED_CLIENT, CONF_NODE, DEFAULT_HOST, DEFAULT_PORT, DOMAIN
 from .hub import NctrHub
 
@@ -34,13 +35,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: NctrConfigEntry) -> bool
     def save_node(node: bytes) -> None:
         hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_NODE: node.hex()})
 
+    host = str(settings.get(CONF_HOST, DEFAULT_HOST))
+    lan_ip, _ = await async_lan(hass)
     hub = NctrHub(
-        str(settings.get(CONF_HOST, DEFAULT_HOST)),
+        host,
         int(settings.get(CONF_PORT, DEFAULT_PORT)),  # type: ignore[call-overload]
-        str(settings[CONF_ALLOWED_CLIENT]),
+        str(settings.get(CONF_ALLOWED_CLIENT) or "") or None,
         now=dt_util.now,
         node=bytes.fromhex(node_hex) if node_hex else None,
         on_node=save_node,
+        advertised_ip=advertised_ip(host, lan_ip),
     )
     try:
         await hub.async_start()

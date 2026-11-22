@@ -36,6 +36,7 @@ class NctrConnection(NctrEntity, BinarySensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, object]:
         stats = self.hub.stats
+        target = self.hub.provision_target()
         return {
             "tcp_connected": self.hub.connected,
             "peer": self.hub.peer,
@@ -43,4 +44,6 @@ class NctrConnection(NctrEntity, BinarySensorEntity):
             "resumed_sessions": stats.resumed,
             "silent_closes": stats.silent_closes,
             "last_disconnect": stats.last_disconnect,
+            "provision_server": target["server_url"],
+            "provision_port": target["port"],
         }

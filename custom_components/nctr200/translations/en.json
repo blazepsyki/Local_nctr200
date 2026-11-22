@@ -3,15 +3,15 @@
     "step": {
       "user": {
         "title": "NCTR-200 local server",
-        "description": "Home Assistant listens on this address. Provision the controller with this host's IP and port as its server.",
+        "description": "Home Assistant starts listening for the controller once you submit. The controller does not need to be connected yet.\n\nNext, point the controller's Wi-Fi settings at this server: server `{server}`, port {port}. Use **Configure → Provision the controller** on this integration, or the standalone provision.py tool from a PC. See the README.",
         "data": {
-          "allowed_client": "Controller address",
+          "allowed_client": "Allowed client (optional)",
           "port": "Port",
           "host": "Listen address"
         },
         "data_description": {
-          "allowed_client": "IP address of the controller, or a network such as 192.168.0.0/24. Other clients are rejected.",
-          "port": "The port given to the controller when it was provisioned (20000 by default).",
+          "allowed_client": "Accept connections only from this IP or network. Filled with Home Assistant's LAN; leave empty to accept any. Behind a Windows hotspot the controller appears as the PC's address.",
+          "port": "TCP port the controller connects to (20000 by default).",
           "host": "0.0.0.0 listens on every interface."
         }
       }
@@ -28,22 +28,57 @@
   "options": {
     "step": {
       "init": {
+        "title": "NCTR-200",
+        "menu_options": {
+          "settings": "Server settings",
+          "provision": "Provision the controller"
+        }
+      },
+      "settings": {
+        "title": "Server settings",
         "data": {
-          "allowed_client": "Controller address",
+          "allowed_client": "Allowed client (optional)",
           "port": "Port",
           "host": "Listen address"
+        },
+        "data_description": {
+          "allowed_client": "Accept connections only from this IP or network. Filled with Home Assistant's LAN; leave empty to accept any. Behind a Windows hotspot the controller appears as the PC's address.",
+          "port": "TCP port the controller connects to (20000 by default).",
+          "host": "0.0.0.0 listens on every interface."
+        }
+      },
+      "provision": {
+        "title": "Provision the controller",
+        "description": "Sends the Wi-Fi settings to the controller once. Before submitting:\n1. Put the controller in setup mode (power off, hold the Away button for 5 seconds). It opens the `{setup_ssid}` Wi-Fi.\n2. Connect this Home Assistant host to `{setup_ssid}`. The host needs a Wi-Fi adapter besides its LAN link.\n\nThe controller will connect to `{server}`, port {port}. It needs Internet access to look up that name. The password is used once and not stored.",
+        "data": {
+          "ssid": "Wi-Fi name (2.4 GHz)",
+          "password": "Wi-Fi password",
+          "server_ip": "Server IP"
+        },
+        "data_description": {
+          "ssid": "The network the controller should join.",
+          "server_ip": "Home Assistant's address on that network."
         }
       }
     },
     "error": {
       "invalid_client": "Enter an IP address or a network such as 192.168.0.0/24.",
       "invalid_host": "Enter an IPv4 address.",
-      "port_in_use": "This port is in use by another program. Stop it first."
+      "port_in_use": "This port is in use by another program. Stop it first.",
+      "invalid_provision": "The Wi-Fi name and password must be printable ASCII without commas, and the server must be an IPv4 address.",
+      "not_on_setup_ap": "This Home Assistant host is not connected to the controller's krb_set network.",
+      "provision_failed": "Could not send to the controller.",
+      "provision_rejected": "The controller rejected the settings."
+    },
+    "abort": {
+      "provision_sent": "Sent. The `krb_set` network should disappear within seconds; the controller then joins the Wi-Fi and connects to `{server}`, port {port}. Watch the Connection entity."
     }
   },
   "entity": {
     "binary_sensor": {
-      "connection": { "name": "Connection" }
+      "connection": {
+        "name": "Connection"
+      }
     },
     "climate": {
       "boiler": {
@@ -62,13 +97,23 @@
       }
     },
     "number": {
-      "ondol_target": { "name": "Ondol target" },
-      "hot_water_target": { "name": "Hot water target" },
-      "heating_water_target": { "name": "Heating water target" }
+      "ondol_target": {
+        "name": "Ondol target"
+      },
+      "hot_water_target": {
+        "name": "Hot water target"
+      },
+      "heating_water_target": {
+        "name": "Heating water target"
+      }
     },
     "sensor": {
-      "room_current": { "name": "Room temperature" },
-      "heating_water_current": { "name": "Heating water temperature" },
+      "room_current": {
+        "name": "Room temperature"
+      },
+      "heating_water_current": {
+        "name": "Heating water temperature"
+      },
       "mode": {
         "name": "Mode",
         "state": {
@@ -81,9 +126,15 @@
           "off": "Off"
         }
       },
-      "burner_level": { "name": "Burner level" },
-      "status_flags": { "name": "Status flags" },
-      "last_report": { "name": "Last state report" }
+      "burner_level": {
+        "name": "Burner level"
+      },
+      "status_flags": {
+        "name": "Status flags"
+      },
+      "last_report": {
+        "name": "Last state report"
+      }
     }
   },
   "exceptions": {
@@ -102,8 +153,14 @@
       "name": "Set heating reservation",
       "description": "Repeat: stop for the given hours, then run for the given minutes.",
       "fields": {
-        "stop_hours": { "name": "Stop hours", "description": "1 to 24 hours." },
-        "run_minutes": { "name": "Run minutes", "description": "10 to 90 minutes." }
+        "stop_hours": {
+          "name": "Stop hours",
+          "description": "1 to 24 hours."
+        },
+        "run_minutes": {
+          "name": "Run minutes",
+          "description": "10 to 90 minutes."
+        }
       }
     },
     "set_schedule": {

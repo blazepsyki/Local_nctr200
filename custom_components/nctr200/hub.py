@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from . import messages as m
+from . import provision
 from .protocol import Decoder, Frame, ProtocolError, packet
 
 _LOGGER = logging.getLogger(__name__)
@@ -163,15 +164,20 @@ class NctrHub:
         self,
         host: str,
         port: int,
-        allowed_client: str,
+        allowed_client: str | None,
         *,
         now: Callable[[], datetime],
         node: bytes | None = None,
         on_node: Callable[[bytes], None] | None = None,
+        advertised_ip: str | None = None,
     ) -> None:
         self.host = host
         self.port = port
-        self.allowed = ipaddress.ip_network(allowed_client, strict=False)
+        # None accepts any client; the listening port is the only gate then.
+        self.allowed = (
+            ipaddress.ip_network(allowed_client, strict=False) if allowed_client else None
+        )
+        self.advertised_ip = advertised_ip
         self._now = now
         self.node = node
         self._on_node = on_node
@@ -264,7 +270,7 @@ class NctrHub:
         peername = writer.get_extra_info("peername")
         peer = str(peername[0]) if peername else "?"
         try:
-            allowed = ipaddress.ip_address(peer) in self.allowed
+            allowed = self.allowed is None or ipaddress.ip_address(peer) in self.allowed
         except ValueError:
             allowed = False
         if not allowed:
@@ -578,11 +584,21 @@ class NctrHub:
 
     # ----- diagnostics -----
 
+    def provision_target(self) -> dict[str, object]:
+        """What the controller's Wi-Fi settings should point at."""
+        ip = self.advertised_ip
+        return {
+            "server_ip": ip,
+            "server_url": provision.server_url(ip) if ip else None,
+            "port": self.bound_port or self.port,
+        }
+
     def diagnostics(self) -> dict[str, object]:
         session = self._session
         return {
             "listening": {"host": self.host, "port": self.bound_port or self.port},
-            "allowed_client": str(self.allowed),
+            "allowed_client": str(self.allowed) if self.allowed else "any",
+            "provision": self.provision_target(),
             "connected": self.connected,
             "ready": self.ready,
             "identified": bool(session and session.identified),

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import socket
 
 import pytest
@@ -11,6 +12,8 @@ from homeassistant.const import CONF_HOST, CONF_PORT, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 
+import custom_components.nctr200 as integration
+from custom_components.nctr200 import config_flow, provision
 from custom_components.nctr200 import messages as m
 from custom_components.nctr200.const import CONF_ALLOWED_CLIENT, CONF_NODE, DOMAIN
 from custom_components.nctr200.diagnostics import async_get_config_entry_diagnostics
@@ -19,6 +22,18 @@ from custom_components.nctr200.hub import NctrHub, NotReadyError
 from .test_hub import NODE, Device
 
 CLIMATE = "climate.nctr_200"
+
+
+LAN = ("192.168.0.8", "192.168.0.0/24")
+
+
+@pytest.fixture(autouse=True)
+def fixed_lan(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def lan(hass: HomeAssistant) -> tuple[str, str]:
+        return LAN
+
+    monkeypatch.setattr(integration, "async_lan", lan)
+    monkeypatch.setattr(config_flow, "async_lan", lan)
 
 
 def free_port() -> int:
@@ -54,6 +69,91 @@ async def test_flow_validates_input(hass: HomeAssistant) -> None:
         busy.listen()
         result = await start_flow(hass, **{CONF_PORT: busy.getsockname()[1]})
     assert result["errors"] == {CONF_PORT: "port_in_use"}
+
+
+async def test_form_suggests_lan_and_shows_server(hass: HomeAssistant) -> None:
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    assert result["description_placeholders"]["server"] == "http://nas.192.168.0.8.nip.io"
+    assert result["description_placeholders"]["port"] == "20000"
+    field = next(k for k in result["data_schema"].schema if k == CONF_ALLOWED_CLIENT)
+    assert field.description == {"suggested_value": LAN[1]}
+
+    # The allow-list is optional; leaving it out accepts any client.
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_PORT: free_port(), CONF_HOST: "127.0.0.1"}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_ALLOWED_CLIENT] == ""
+    await hass.async_block_till_done()
+    hub: NctrHub = hass.config_entries.async_entries(DOMAIN)[0].runtime_data
+    assert hub.allowed is None
+    # Bound to 127.0.0.1, that is the address to provision.
+    assert hub.provision_target()["server_url"] == "http://nas.127.0.0.1.nip.io"
+    attributes = hass.states.get("binary_sensor.nctr_200_connection").attributes
+    assert attributes["provision_server"] == "http://nas.127.0.0.1.nip.io"
+
+
+class FakeSetupAp(asyncio.DatagramProtocol):
+    def __init__(self) -> None:
+        self.received: list[bytes] = []
+
+    def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:
+        self.received.append(data)
+
+
+async def test_options_provision(hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch) -> None:
+    await set_up(hass)
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    transport, ap = await asyncio.get_running_loop().create_datagram_endpoint(
+        FakeSetupAp, local_addr=("127.0.0.1", 0)
+    )
+    monkeypatch.setattr(provision, "AP_ADDRESS", transport.get_extra_info("sockname"))
+    monkeypatch.setattr(provision, "REPLY_TIMEOUT", 0.3)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] is FlowResultType.MENU
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "provision"}
+    )
+    assert result["step_id"] == "provision"
+    user = {"ssid": "home", "password": "secret", "server_ip": "192.168.0.8"}
+
+    # Not on the krb_set network: nothing is sent.
+    result = await hass.config_entries.options.async_configure(result["flow_id"], user)
+    assert result["errors"] == {"base": "not_on_setup_ap"}
+
+    monkeypatch.setattr(provision, "SETUP_NETWORK", ipaddress.ip_network("127.0.0.0/8"))
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {**user, "ssid": "a,b"}
+    )
+    assert result["errors"] == {"base": "invalid_provision"}
+    assert ap.received == []
+
+    result = await hass.config_entries.options.async_configure(result["flow_id"], user)
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "provision_sent"
+    expected = provision.Plan("home", "secret", "192.168.0.8", entry.data[CONF_PORT])
+    assert ap.received == [expected.payload()]
+    # The password is not kept in the entry.
+    assert "secret" not in repr(entry.data) + repr(entry.options)
+    transport.close()
+
+
+async def test_options_settings(hass: HomeAssistant) -> None:
+    hub, _ = await set_up(hass)
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "settings"}
+    )
+    assert result["step_id"] == "settings"
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {CONF_ALLOWED_CLIENT: "10.0.0.0/8", CONF_PORT: hub.port, CONF_HOST: "127.0.0.1"},
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done()
+    assert str(entry.runtime_data.allowed) == "10.0.0.0/8"
 
 
 async def test_entities_follow_the_controller(hass: HomeAssistant) -> None:

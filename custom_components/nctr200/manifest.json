@@ -4,12 +4,12 @@
   "categories": ["climate.thermostats_heating"],
   "codeowners": ["@blazepsyki"],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": ["network"],
   "documentation": "https://github.com/blazepsyki/Local_nctr200",
   "integration_type": "device",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/blazepsyki/Local_nctr200/issues",
   "requirements": [],
   "single_config_entry": true,
-  "version": "0.1.0"
+  "version": "0.2.0"
 }
