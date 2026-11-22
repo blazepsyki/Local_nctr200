@@ -1,6 +1,7 @@
 {
   "domain": "nctr200",
   "name": "NCTR-200 Local",
+  "categories": ["climate.thermostats_heating"],
   "codeowners": ["@blazepsyki"],
   "config_flow": true,
   "dependencies": [],
