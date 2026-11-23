@@ -12,6 +12,7 @@ from homeassistant.const import CONF_HOST, CONF_PORT, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.translation import async_get_translations
 
 import custom_components.nctr200 as integration
@@ -176,6 +177,19 @@ async def test_hvac_modes_are_labelled_on_off(hass: HomeAssistant) -> None:
     assert translations[f"{prefix}.off"] == "꺼짐"
 
 
+async def test_retired_numbers_are_removed(hass: HomeAssistant) -> None:
+    await set_up(hass)
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    registry = er.async_get(hass)
+    old = registry.async_get_or_create(
+        "number", DOMAIN, f"{entry.entry_id}_ondol_target", config_entry=entry
+    )
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert registry.async_get(old.entity_id) is None
+    assert registry.async_get_entity_id("number", DOMAIN, f"{entry.entry_id}_hot_water_target")
+
+
 async def test_entities_follow_the_controller(hass: HomeAssistant) -> None:
     hub, device = await set_up(hass)
     assert hass.states.get(CLIMATE).state == STATE_UNAVAILABLE
@@ -189,7 +203,12 @@ async def test_entities_follow_the_controller(hass: HomeAssistant) -> None:
     assert climate.attributes["temperature"] == 25
     assert climate.attributes["preset_mode"] == "room"
     assert hass.states.get("binary_sensor.nctr_200_connection").state == "on"
-    assert hass.states.get("number.nctr_200_ondol_target").state == "45"
+    assert hass.states.get("number.nctr_200_hot_water_target").state == "60"
+    # Replaced by the climate dial and dropdowns, or dropped.
+    assert hass.states.get("number.nctr_200_ondol_target") is None
+    assert climate.attributes["fan_modes"][0] == "1"
+    assert climate.attributes["swing_modes"][-1] == "90"
+    assert len(climate.attributes["swing_modes"]) == 81
     assert hass.states.get("sensor.nctr_200_mode").state == "room"
     entry = hass.config_entries.async_entries(DOMAIN)[0]
     assert entry.data[CONF_NODE] == NODE.hex()
@@ -229,7 +248,7 @@ async def test_entities_follow_the_controller(hass: HomeAssistant) -> None:
     )
     assert (command.mid, command.body) == (m.MID_ONDOL, bytes((0, 0, 0, 0, 60, 0)))
     assert hass.states.get(CLIMATE).attributes["temperature"] == 60
-    assert hass.states.get("number.nctr_200_ondol_target").state == "60"
+    assert hass.states.get(CLIMATE).attributes["ondol_target"] == 60
 
     # Reservation needs its values first; picking them outside reservation mode sends
     # nothing.
@@ -240,14 +259,15 @@ async def test_entities_follow_the_controller(hass: HomeAssistant) -> None:
             {"entity_id": CLIMATE, "preset_mode": "reservation"},
             blocking=True,
         )
-    for entity_id, value in (
-        ("number.nctr_200_reservation_stop_time", 4),
-        ("number.nctr_200_reservation_run_time", 20),
+    for service, field, value in (
+        ("set_fan_mode", "fan_mode", "4"),
+        ("set_swing_mode", "swing_mode", "20"),
     ):
         await hass.services.async_call(
-            "number", "set_value", {"entity_id": entity_id, "value": value}, blocking=True
+            "climate", service, {"entity_id": CLIMATE, field: value}, blocking=True
         )
-    assert hass.states.get("number.nctr_200_reservation_stop_time").state == "4"
+    climate = hass.states.get(CLIMATE)
+    assert (climate.attributes["fan_mode"], climate.attributes["swing_mode"]) == ("4", "20")
     command = await answer(
         hass,
         device,
@@ -261,12 +281,12 @@ async def test_entities_follow_the_controller(hass: HomeAssistant) -> None:
     command = await answer(
         hass,
         device,
-        "number",
-        "set_value",
-        {"entity_id": "number.nctr_200_reservation_run_time", "value": 30},
+        "climate",
+        "set_swing_mode",
+        {"entity_id": CLIMATE, "swing_mode": "30"},
     )
     assert command.body == bytes((1, 0, 0, 0, 4, 30))
-    assert hass.states.get("number.nctr_200_reservation_run_time").state == "30"
+    assert hass.states.get(CLIMATE).attributes["swing_mode"] == "30"
 
     call = hass.async_create_task(
         hass.services.async_call(

@@ -1,0 +1,16 @@
+{
+  "entity": {
+    "climate": {
+      "boiler": {
+        "state_attributes": {
+          "fan_mode": {
+            "default": "mdi:timer-pause-outline"
+          },
+          "swing_mode": {
+            "default": "mdi:timer-play-outline"
+          }
+        }
+      }
+    }
+  }
+}

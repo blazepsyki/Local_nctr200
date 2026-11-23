@@ -6,6 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
 from .addressing import advertised_ip, async_lan
@@ -24,6 +25,25 @@ type NctrConfigEntry = ConfigEntry[NctrHub]
 
 def _settings(entry: ConfigEntry) -> dict[str, object]:
     return {**entry.data, **entry.options}
+
+
+# Number entities replaced by the climate dial (ondol) and its two dropdowns
+# (reservation), or dropped (heating water).
+RETIRED_NUMBERS = (
+    "heating_water_target",
+    "ondol_target",
+    "reservation_stop_hours",
+    "reservation_run_minutes",
+)
+
+
+@callback
+def _remove_retired_entities(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    registry = er.async_get(hass)
+    for key in RETIRED_NUMBERS:
+        unique_id = f"{entry.entry_id}_{key}"
+        if entity_id := registry.async_get_entity_id(Platform.NUMBER, DOMAIN, unique_id):
+            registry.async_remove(entity_id)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: NctrConfigEntry) -> bool:
@@ -55,6 +75,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: NctrConfigEntry) -> bool
             translation_placeholders={"port": str(hub.port), "error": str(err)},
         ) from err
     entry.runtime_data = hub
+    _remove_retired_entities(hass, entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     options = dict(entry.options)
 
