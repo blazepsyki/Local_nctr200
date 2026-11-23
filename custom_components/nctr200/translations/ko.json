@@ -82,6 +82,10 @@
     },
     "climate": {
       "boiler": {
+        "state": {
+          "heat": "켜짐",
+          "off": "꺼짐"
+        },
         "state_attributes": {
           "preset_mode": {
             "state": {
@@ -105,6 +109,12 @@
       },
       "heating_water_target": {
         "name": "난방수 온도 설정"
+      },
+      "reservation_stop_hours": {
+        "name": "예약 정지 시간"
+      },
+      "reservation_run_minutes": {
+        "name": "예약 가동 시간"
       }
     },
     "sensor": {
@@ -146,6 +156,9 @@
     },
     "no_ack": {
       "message": "조절기가 명령에 응답(ACK)하지 않았습니다: {error}"
+    },
+    "reservation_unknown": {
+      "message": "예약 정지 시간과 예약 가동 시간을 먼저 정하세요."
     }
   },
   "services": {

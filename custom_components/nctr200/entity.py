@@ -10,7 +10,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 
 from .const import DOMAIN, MANUFACTURER, MODEL
-from .hub import CommandTimeoutError, NctrHub, NotReadyError
+from .hub import CommandTimeoutError, NctrHub, NotReadyError, ReservationUnknownError
 
 
 class NctrEntity(Entity):
@@ -45,6 +45,10 @@ class NctrEntity(Entity):
             await command
         except ValueError as err:
             raise ServiceValidationError(str(err)) from err
+        except ReservationUnknownError as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="reservation_unknown"
+            ) from err
         except NotReadyError as err:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,

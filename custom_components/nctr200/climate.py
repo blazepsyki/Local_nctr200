@@ -66,9 +66,15 @@ async def async_setup_entry(
 
 
 class NctrClimate(NctrEntity, ClimateEntity):
-    """Power on/off, mode as preset, room heating target."""
+    """Power on/off (HVAC heat/off), mode as preset, and one target dial.
+
+    The dial sets the ondol temperature in ondol mode and the room temperature
+    otherwise; setting the room temperature also selects room heating.
+    """
 
     _attr_name = None
+    # Heat means "on": the controller has no separate heating switch. The labels are
+    # translated as on/off.
     _attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]
     _attr_preset_modes = PRESETS
     _attr_supported_features = (
@@ -77,10 +83,21 @@ class NctrClimate(NctrEntity, ClimateEntity):
         | ClimateEntityFeature.TURN_ON
         | ClimateEntityFeature.TURN_OFF
     )
-    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_target_temperature_step = 1
-    _attr_min_temp = m.ROOM_RANGE[0]
-    _attr_max_temp = m.ROOM_RANGE[1]
+
+    @property
+    def _ondol_dial(self) -> bool:
+        state = self.hub.state
+        return state.mode == m.MODE_ONDOL and state.overlay is None
+
+    @property
+    def min_temp(self) -> float:
+        return (m.ONDOL_RANGE if self._ondol_dial else m.ROOM_RANGE)[0]
+
+    @property
+    def max_temp(self) -> float:
+        return (m.ONDOL_RANGE if self._ondol_dial else m.ROOM_RANGE)[1]
 
     @property
     def hvac_mode(self) -> HVACMode | None:
@@ -95,20 +112,23 @@ class NctrClimate(NctrEntity, ClimateEntity):
         return state.overlay or state.mode
 
     @property
-    def current_temperature(self) -> float | None:
+    def native_current_temperature(self) -> float | None:
         return self.hub.state.room_current
 
     @property
-    def target_temperature(self) -> float | None:
-        return self.hub.state.room_target
+    def native_target_temperature(self) -> float | None:
+        state = self.hub.state
+        return state.ondol_target if self._ondol_dial else state.room_target
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         state = self.hub.state
-        reservation = state.reservation
         return {
-            "reservation_stop_hours": reservation[0] if reservation else None,
-            "reservation_run_minutes": reservation[1] if reservation else None,
+            "target_kind": "ondol" if self._ondol_dial else "room",
+            "room_target": state.room_target,
+            "ondol_target": state.ondol_target,
+            "reservation_stop_hours": self.hub.reservation_value(0),
+            "reservation_run_minutes": self.hub.reservation_value(1),
             "schedule": state.schedule,
         }
 
@@ -124,8 +144,11 @@ class NctrClimate(NctrEntity, ClimateEntity):
     async def async_set_temperature(self, **kwargs: Any) -> None:
         if (temperature := kwargs.get(ATTR_TEMPERATURE)) is None:
             return
-        # 0102 also selects room heating mode.
-        await self._run(self.hub.async_set_room_target(round(temperature)))
+        if self._ondol_dial:
+            await self._run(self.hub.async_set_ondol_target(round(temperature)))
+        else:
+            # 0102 also selects room heating mode.
+            await self._run(self.hub.async_set_room_target(round(temperature)))
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         hub = self.hub

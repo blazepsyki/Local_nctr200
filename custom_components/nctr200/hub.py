@@ -52,6 +52,10 @@ class CommandTimeoutError(NctrError):
     """The controller did not acknowledge a command."""
 
 
+class ReservationUnknownError(NctrError):
+    """Reservation mode was selected before its stop hours and run minutes are known."""
+
+
 @dataclass
 class DeviceState:
     """Latest known controller values. None means not reported yet."""
@@ -190,6 +194,8 @@ class NctrHub:
         self._command_lock = asyncio.Lock()
         self._pending: _Pending | None = None
         self._tokens: set[bytes] = set()
+        # Reservation values picked while not in reservation mode (stop h, run min).
+        self._reservation_draft: list[int | None] = [None, None]
         self._ready_seen = False
 
     # ----- lifecycle -----
@@ -403,6 +409,7 @@ class NctrHub:
                 self._set_mode(m.MODE_AWAY)
             elif mid == m.MID_RESERVATION:
                 s.reservation = (body[4], body[5])
+                self._reservation_draft = [None, None]
                 self._set_mode(m.MODE_RESERVATION)
             elif mid == m.MID_BATH:
                 s.power_on, s.overlay = True, m.OVERLAY_BATH
@@ -565,13 +572,51 @@ class NctrHub:
         def apply(s: DeviceState) -> None:
             s.reservation = (stop_hours, run_minutes)
             s.mode, s.overlay, s.power_on = m.MODE_RESERVATION, None, True
+            self._reservation_draft = [None, None]
 
         await self._command(m.MID_RESERVATION, body, apply)
 
+    def reservation_value(self, index: int) -> int | None:
+        """Stop hours (0) or run minutes (1) to use: a value picked here, else the last
+        one the controller reported or accepted."""
+        draft = self._reservation_draft[index]
+        if draft is not None:
+            return draft
+        reported = self.state.reservation
+        return reported[index] if reported else None
+
+    async def async_set_reservation_value(self, index: int, value: int) -> None:
+        """Change stop hours (0) or run minutes (1).
+
+        In reservation mode this sends 0108 at once. Otherwise the value is kept for
+        the next time reservation mode is selected; the controller is not told.
+        """
+        low, high = (m.RESERVATION_STOP_RANGE, m.RESERVATION_RUN_RANGE)[index]
+        if not low <= value <= high:
+            raise ValueError(f"reservation value must be {low}..{high}: {value}")
+        stop_hours, run_minutes = self.reservation_value(0), self.reservation_value(1)
+        if index == 0:
+            stop_hours = value
+        else:
+            run_minutes = value
+        s = self.state
+        in_reservation = s.mode == m.MODE_RESERVATION and s.overlay is None and s.power_on
+        if in_reservation and stop_hours is not None and run_minutes is not None:
+            await self.async_set_reservation(stop_hours, run_minutes)
+            return
+        self._reservation_draft[index] = value
+        self._notify()
+
+    def restore_reservation_value(self, index: int, value: int) -> None:
+        """Take back a value picked before Home Assistant restarted."""
+        if self.reservation_value(index) is None:
+            self._reservation_draft[index] = value
+
     async def async_select_reservation(self) -> None:
-        if self.state.reservation is None:
-            raise NotReadyError("reservation hours are not known yet; use set_reservation")
-        await self.async_set_reservation(*self.state.reservation)
+        stop_hours, run_minutes = self.reservation_value(0), self.reservation_value(1)
+        if stop_hours is None or run_minutes is None:
+            raise ReservationUnknownError("reservation stop hours and run minutes are not set")
+        await self.async_set_reservation(stop_hours, run_minutes)
 
     async def async_set_schedule(self, text: str) -> None:
         slots = m.parse_schedule(text)

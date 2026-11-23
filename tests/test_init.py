@@ -11,6 +11,8 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_HOST, CONF_PORT, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers.translation import async_get_translations
 
 import custom_components.nctr200 as integration
 from custom_components.nctr200 import config_flow, provision
@@ -156,6 +158,24 @@ async def test_options_settings(hass: HomeAssistant) -> None:
     assert str(entry.runtime_data.allowed) == "10.0.0.0/8"
 
 
+async def answer(  # type: ignore[no-untyped-def]
+    hass: HomeAssistant, device: Device, domain: str, service: str, data: dict
+):
+    """Call a service, ACK the command it sends, and return that command."""
+    call = hass.async_create_task(hass.services.async_call(domain, service, data, blocking=True))
+    command = await device.receive()
+    await device.send(command.mid, command.token)
+    await call
+    return command
+
+
+async def test_hvac_modes_are_labelled_on_off(hass: HomeAssistant) -> None:
+    translations = await async_get_translations(hass, "ko", "entity", {DOMAIN})
+    prefix = f"component.{DOMAIN}.entity.climate.boiler.state"
+    assert translations[f"{prefix}.heat"] == "켜짐"
+    assert translations[f"{prefix}.off"] == "꺼짐"
+
+
 async def test_entities_follow_the_controller(hass: HomeAssistant) -> None:
     hub, device = await set_up(hass)
     assert hass.states.get(CLIMATE).state == STATE_UNAVAILABLE
@@ -198,7 +218,55 @@ async def test_entities_follow_the_controller(hass: HomeAssistant) -> None:
     assert (command.mid, command.body) == (m.MID_ONDOL, bytes((0, 0, 0, 0, 45, 0)))
     await device.send(command.mid, command.token)
     await call
-    assert hass.states.get(CLIMATE).attributes["preset_mode"] == "ondol"
+    climate = hass.states.get(CLIMATE)
+    assert climate.attributes["preset_mode"] == "ondol"
+    # In ondol mode the dial is the ondol temperature.
+    assert (climate.attributes["min_temp"], climate.attributes["max_temp"]) == (45, 85)
+    assert climate.attributes["temperature"] == 45
+
+    command = await answer(
+        hass, device, "climate", "set_temperature", {"entity_id": CLIMATE, "temperature": 60}
+    )
+    assert (command.mid, command.body) == (m.MID_ONDOL, bytes((0, 0, 0, 0, 60, 0)))
+    assert hass.states.get(CLIMATE).attributes["temperature"] == 60
+    assert hass.states.get("number.nctr_200_ondol_target").state == "60"
+
+    # Reservation needs its values first; picking them outside reservation mode sends
+    # nothing.
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            "climate",
+            "set_preset_mode",
+            {"entity_id": CLIMATE, "preset_mode": "reservation"},
+            blocking=True,
+        )
+    for entity_id, value in (
+        ("number.nctr_200_reservation_stop_time", 4),
+        ("number.nctr_200_reservation_run_time", 20),
+    ):
+        await hass.services.async_call(
+            "number", "set_value", {"entity_id": entity_id, "value": value}, blocking=True
+        )
+    assert hass.states.get("number.nctr_200_reservation_stop_time").state == "4"
+    command = await answer(
+        hass,
+        device,
+        "climate",
+        "set_preset_mode",
+        {"entity_id": CLIMATE, "preset_mode": "reservation"},
+    )
+    assert (command.mid, command.body) == (m.MID_RESERVATION, bytes((1, 0, 0, 0, 4, 20)))
+    assert hass.states.get(CLIMATE).attributes["preset_mode"] == "reservation"
+    # In reservation mode a change is sent at once.
+    command = await answer(
+        hass,
+        device,
+        "number",
+        "set_value",
+        {"entity_id": "number.nctr_200_reservation_run_time", "value": 30},
+    )
+    assert command.body == bytes((1, 0, 0, 0, 4, 30))
+    assert hass.states.get("number.nctr_200_reservation_run_time").state == "30"
 
     call = hass.async_create_task(
         hass.services.async_call(

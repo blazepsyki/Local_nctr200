@@ -82,6 +82,10 @@
     },
     "climate": {
       "boiler": {
+        "state": {
+          "heat": "On",
+          "off": "Off"
+        },
         "state_attributes": {
           "preset_mode": {
             "state": {
@@ -105,6 +109,12 @@
       },
       "heating_water_target": {
         "name": "Heating water target"
+      },
+      "reservation_stop_hours": {
+        "name": "Reservation stop time"
+      },
+      "reservation_run_minutes": {
+        "name": "Reservation run time"
       }
     },
     "sensor": {
@@ -146,6 +156,9 @@
     },
     "no_ack": {
       "message": "The controller did not acknowledge the command: {error}"
+    },
+    "reservation_unknown": {
+      "message": "Set the reservation stop time and run time first."
     }
   },
   "services": {
