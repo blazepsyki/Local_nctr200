@@ -618,6 +618,20 @@ class NctrHub:
             raise ReservationUnknownError("reservation stop hours and run minutes are not set")
         await self.async_set_reservation(stop_hours, run_minutes)
 
+    async def async_select_preset(self, preset: str) -> None:
+        """Select an operating mode by its preset name (room, ondol, ...)."""
+        actions = {
+            m.MODE_ROOM: self.async_select_room,
+            m.MODE_ONDOL: self.async_select_ondol,
+            m.MODE_RESERVATION: self.async_select_reservation,
+            m.MODE_AWAY: self.async_select_away,
+            m.OVERLAY_BATH: self.async_select_bath,
+            m.OVERLAY_HOT_WATER_ONLY: self.async_select_hot_water_only,
+        }
+        if preset not in actions:
+            raise ValueError(f"unknown mode: {preset}")
+        await actions[preset]()
+
     async def async_set_schedule(self, text: str) -> None:
         slots = m.parse_schedule(text)
         body = m.schedule_body(slots)

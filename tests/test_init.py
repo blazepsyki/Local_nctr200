@@ -190,6 +190,39 @@ async def test_retired_numbers_are_removed(hass: HomeAssistant) -> None:
     assert registry.async_get_entity_id("number", DOMAIN, f"{entry.entry_id}_hot_water_target")
 
 
+async def test_dashboard_selects_and_power_switch(hass: HomeAssistant) -> None:
+    _, device = await set_up(hass)
+    await device.handshake()
+    await hass.async_block_till_done()
+    registry = er.async_get(hass)
+    mode = "select.nctr_200_operating_mode"
+    stop = "select.nctr_200_reservation_stop_time"
+    run = "select.nctr_200_reservation_run_time"
+    power = "switch.nctr_200_power"
+    # Hidden on the device page, still usable in cards.
+    for entity_id in (mode, stop, run, power):
+        assert registry.async_get(entity_id).hidden_by is er.RegistryEntryHider.INTEGRATION
+    assert hass.states.get(mode).state == "room"
+    assert hass.states.get(power).state == "on"
+    assert len(hass.states.get(run).attributes["options"]) == 81
+
+    # Picked outside reservation mode: kept, nothing sent.
+    for entity_id, option in ((stop, "2"), (run, "15")):
+        await hass.services.async_call(
+            "select", "select_option", {"entity_id": entity_id, "option": option}, blocking=True
+        )
+    assert hass.states.get(CLIMATE).attributes["fan_mode"] == "2"
+    command = await answer(
+        hass, device, "select", "select_option", {"entity_id": mode, "option": "reservation"}
+    )
+    assert (command.mid, command.body) == (m.MID_RESERVATION, bytes((1, 0, 0, 0, 2, 15)))
+    assert hass.states.get(mode).state == "reservation"
+
+    command = await answer(hass, device, "switch", "turn_off", {"entity_id": power})
+    assert (command.mid, command.body) == (m.MID_POWER, m.power_body(False))
+    assert hass.states.get(power).state == "off"
+
+
 async def test_entities_follow_the_controller(hass: HomeAssistant) -> None:
     hub, device = await set_up(hass)
     assert hass.states.get(CLIMATE).state == STATE_UNAVAILABLE

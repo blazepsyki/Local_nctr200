@@ -11,6 +11,22 @@
           }
         }
       }
+    },
+    "select": {
+      "operating_mode": {
+        "default": "mdi:format-list-bulleted"
+      },
+      "reservation_stop_time": {
+        "default": "mdi:timer-pause-outline"
+      },
+      "reservation_run_time": {
+        "default": "mdi:timer-play-outline"
+      }
+    },
+    "switch": {
+      "power": {
+        "default": "mdi:power"
+      }
     }
   }
 }

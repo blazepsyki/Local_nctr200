@@ -207,16 +207,7 @@ class NctrClimate(NctrEntity, ClimateEntity, RestoreEntity):
             await self._run(self.hub.async_set_room_target(round(temperature)))
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
-        hub = self.hub
-        actions = {
-            PRESET_ROOM: hub.async_select_room,
-            PRESET_ONDOL: hub.async_select_ondol,
-            PRESET_AWAY: hub.async_select_away,
-            PRESET_RESERVATION: hub.async_select_reservation,
-            PRESET_BATH: hub.async_select_bath,
-            PRESET_HOT_WATER_ONLY: hub.async_select_hot_water_only,
-        }
-        await self._run(actions[preset_mode]())
+        await self._run(self.hub.async_select_preset(preset_mode))
 
     async def async_set_reservation(self, stop_hours: int, run_minutes: int) -> None:
         await self._run(self.hub.async_set_reservation(stop_hours, run_minutes))
