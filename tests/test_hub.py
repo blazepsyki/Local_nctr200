@@ -16,7 +16,7 @@ from custom_components.nctr200.hub import CommandTimeoutError, NctrHub, NotReady
 from custom_components.nctr200.protocol import Frame, packet
 
 NODE = bytes.fromhex("0011223344556677")
-NOW = datetime(2026, 11, 22, 19, 47, 27)
+NOW = datetime(2026, 11, 22, 19, 47, 27, 404_000)
 
 
 def state_body(flags: int = 0xC1, room_current: int = 23, room_target: int = 25) -> bytes:
@@ -40,10 +40,11 @@ class Device:
         self.inbox: list[Frame] = []
 
     def _parse(self) -> None:
-        # The 0001 reply declares 11 but carries 10 bytes; the controller copes.
+        # Time replies declare 11 but carry 10 bytes; the controller copes.
         while len(self.buffer) >= 4:
             mid, length = struct.unpack("!HH", self.buffer[:4])
-            total = 14 if (mid, length) == (m.MID_IDENTITY, 11) else 4 + length
+            time_reply = mid in (m.MID_IDENTITY, m.MID_KEEPALIVE) and length == 11
+            total = 14 if time_reply else 4 + length
             if len(self.buffer) < total:
                 return
             raw = bytes(self.buffer[:total])
@@ -108,7 +109,8 @@ async def test_handshake_time_reply_and_state(hub: NctrHub) -> None:
     assert struct.unpack("!H", packet(1, b"\0\0", b"", 11)[2:4])[0] == 11
     assert reply.declared == 11
     assert reply.token == b"\xc3\x18"
-    assert reply.body == bytes((26, 11, 22, 19, 47, 27, 0x01, 0x23))[: len(reply.body)]
+    # Time plus milliseconds (404 = 0x0194).
+    assert reply.body == bytes((26, 11, 22, 19, 47, 27, 0x01, 0x94))
     assert hub.learned == [NODE]  # type: ignore[attr-defined]
     assert not hub.ready
     await device.send(m.MID_STATE, b"\x46\x6e", state_body())
@@ -163,13 +165,19 @@ async def test_events_are_acknowledged_and_update_state(hub: NctrHub) -> None:
     assert (s.power_on, s.overlay) == (False, None)
 
 
-async def test_keepalive_is_echoed(hub: NctrHub) -> None:
+async def test_keepalive_gets_time_reply(hub: NctrHub) -> None:
     device = await connect(hub)
     await device.handshake()
     await device.send(m.MID_KEEPALIVE, b"\xae\x43")
-    echo = await device.receive()
-    assert (echo.mid, echo.token, echo.body) == (m.MID_KEEPALIVE, b"\xae\x43", b"")
+    reply = await device.receive()
+    # Same frame as the manufacturer server: length 11, time and milliseconds.
+    assert (reply.mid, reply.declared, reply.token) == (m.MID_KEEPALIVE, 11, b"\xae\x43")
+    assert reply.body == bytes((26, 11, 22, 19, 47, 27, 0x01, 0x94))
     assert hub.stats.keepalives == 1
+    # The stream stays in sync after the short frame.
+    await device.send(m.MID_STATE, b"\x46\x6e", state_body())
+    ack = await device.receive()
+    assert (ack.mid, ack.token, ack.body) == (m.MID_STATE, b"\x46\x6e", b"")
 
 
 async def test_command_ack_applies_value(hub: NctrHub) -> None:

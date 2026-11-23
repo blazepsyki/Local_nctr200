@@ -1001,6 +1001,13 @@ class CaptureTests(unittest.TestCase):
         self.assertEqual([e["mid"] for e in frames], ["0001", "01FF"])
         self.assertTrue(frames[0]["length_exception"])
 
+    def test_maker_keepalive_reply_uses_legacy_length(self):
+        # maker_night 00:52:02: 0003 reply with length 11, then a 01FF ACK.
+        wire = bytes.fromhex("0003000b9dd51a0b170034030194" "01ff0002b71a")
+        frames = list(Decoder(legacy_time_reply=True).feed(wire))
+        self.assertEqual([(f.mid, f.body.hex()) for f in frames],
+                         [(0x0003, "1a0b170034030194"), (0x01FF, "")])
+
     def test_gap_and_conflict_not_silently_repaired(self):
         wire = packet(1, TOKEN, NODE)
         rows = [self.row(100, wire), self.row(120, wire, 2)]

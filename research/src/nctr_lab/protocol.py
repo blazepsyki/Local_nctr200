@@ -42,7 +42,9 @@ class Decoder:
             if length < 2 or length > self.max_length:
                 raise ProtocolError(f"invalid declared length: {length}")
             total = 4 + length
-            if self.legacy_time_reply and mid == 0x0001 and length == 11:
+            # The maker server answers 0001 and 0003 with a 10-byte time reply
+            # whose length field says 11.
+            if self.legacy_time_reply and mid in (0x0001, 0x0003) and length == 11:
                 total = 14
             if len(self.buffer) < total:
                 return

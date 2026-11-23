@@ -35,9 +35,8 @@ SILENT_TIMEOUT = 180.0
 # Close a connection that has been quiet this long after sending data.
 IDLE_TIMEOUT = 900.0
 WATCHDOG_INTERVAL = 30.0
-# Two bytes appended to the 0001 time reply, as the manufacturer server sends them.
-TIME_TAIL = b"\x01\x23"
-# The 0001 reply declares length 11 although it carries 10 bytes after the header.
+# The manufacturer server answers 0001 and 0003 with YYMMDDhhmmss plus the
+# milliseconds as two bytes, and declares length 11 although 10 bytes follow.
 TIME_REPLY_DECLARED = 11
 
 
@@ -315,10 +314,11 @@ class NctrHub:
         elif mid == m.MID_PAIR_CODE:
             _LOGGER.info("The controller asked for a pairing code; not answered")
         elif mid == m.MID_KEEPALIVE and not body:
-            # Sent every 10 s from 60 min 8 s after 0001, every 60 min 8 s. No reply
-            # stops it; a real exchange (event or command) does. Harmless.
+            # Sent about every 60 min 7 s after 0001. The manufacturer server answers
+            # with the time reply and the controller then sends it once. Other replies
+            # make it repeat every 10 s until an event or command is exchanged.
             self.stats.keepalives += 1
-            session.send(mid, token)
+            session.send(mid, token, self._time_reply(), TIME_REPLY_DECLARED)
         elif not body:
             pending = self._pending
             if pending and (mid, token) == (pending.mid, pending.token):
@@ -342,12 +342,12 @@ class NctrHub:
                 self._on_node(body)
         session.identified = True
         session.state_at = None
+        session.send(m.MID_IDENTITY, token, self._time_reply(), TIME_REPLY_DECLARED)
+
+    def _time_reply(self) -> bytes:
         now = self._now()
-        reply = (
-            bytes((now.year % 100, now.month, now.day, now.hour, now.minute, now.second))
-            + TIME_TAIL
-        )
-        session.send(m.MID_IDENTITY, token, reply, TIME_REPLY_DECLARED)
+        clock = bytes((now.year % 100, now.month, now.day, now.hour, now.minute, now.second))
+        return clock + (now.microsecond // 1000).to_bytes(2, "big")
 
     def _on_state(self, session: _Session, token: bytes, body: bytes) -> None:
         report = m.parse_state(body)
