@@ -129,3 +129,22 @@ def test_cli(
 
     answers = iter(["one", "two"])
     assert provision.main(argv[:4], ask=lambda _: "SEND", ask_secret=lambda _: next(answers)) == 2
+
+
+def test_cli_explains_missing_setup_address(
+    make_ap: Callable[..., Ap],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    ap = make_ap()
+    monkeypatch.setattr(provision, "setup_source_ip", lambda target=None: None)
+    secret = tmp_path / "pw"
+    secret.write_text("secret\n", encoding="utf-8")
+    argv = ["--ssid", "home", "--server-ip", "192.168.1.8", "--password-file", str(secret)]
+
+    assert provision.main(argv, ask=lambda _: "SEND") == 2
+    assert ap.received == []
+    err = capsys.readouterr().err
+    assert "192.168.200.2/24" in err
+    assert "netsh interface ipv4 set address" in err

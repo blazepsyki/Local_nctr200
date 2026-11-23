@@ -55,7 +55,7 @@ Home Assistant가 조절기 접속을 받을 수 있어야 합니다.
 
 Home Assistant 기기가 `krb_set`에 직접 연결할 수 있을 때 씁니다. 유선 LAN과 별도로 Wi-Fi 어댑터가 있어야 합니다.
 
-1. Home Assistant 기기를 `krb_set`에 연결합니다.
+1. Home Assistant 기기를 `krb_set`에 연결하고, 그 무선 어댑터에 IP `192.168.200.2/24`를 직접 지정합니다. 조절기는 IP를 나눠 주지 않습니다.
 2. 설정 → 기기 및 서비스 → `NCTR-200 Local` → 구성 → **조절기 프로비저닝**
 3. 조절기가 접속할 2.4GHz Wi-Fi 이름과 암호를 넣습니다. 서버 IP는 미리 채워져 있습니다.
 4. 보내면 몇 초 안에 `krb_set`이 사라지고, 조절기가 Wi-Fi에 붙은 뒤 Home Assistant에 접속합니다.
@@ -68,11 +68,22 @@ Home Assistant 기기에 Wi-Fi가 없으면(대부분의 NAS) PC를 씁니다. �
 
 1. [`provision.py`](custom_components/nctr200/provision.py)를 내려받습니다. 릴리스 페이지에도 첨부되어 있습니다.
 2. PC를 `krb_set`에 연결합니다. 기본 암호는 `krb12345`입니다.
-3. 실행합니다.
+3. PC에 IP를 직접 지정합니다. 조절기는 IP를 나눠 주지 않아서, 그대로 두면 PC가 `169.254.x.x`를 갖고 도구가 "krb_set에 연결되어 있지 않습니다"라고 멈춥니다. Windows에서는 관리자 PowerShell에서 실행합니다(어댑터 이름은 `netsh wlan show interfaces`로 확인).
+   ```powershell
+   netsh interface ipv4 set address name="Wi-Fi" static 192.168.200.2 255.255.255.0
+   ping 192.168.200.1
+   ```
+4. 실행합니다.
    ```sh
    python provision.py --ssid <Wi-Fi 이름> --server-ip <Home Assistant IP>
    ```
-4. 암호를 두 번 입력합니다. 보낼 내용이 나오면 확인하고 `SEND`를 입력합니다.
+5. 암호를 두 번 입력합니다. 보낼 내용이 나오면 확인하고 `SEND`를 입력합니다.
+6. 끝나면 PC의 IP 설정을 되돌립니다.
+   ```powershell
+   netsh interface ipv4 set address name="Wi-Fi" dhcp
+   ```
+
+Windows에서 `python`을 입력했는데 "Python"만 나오고 끝나면 Microsoft Store 실행 별칭이 실행된 것입니다. 설정 → 앱 → 고급 앱 설정 → 앱 실행 별칭에서 `python.exe`, `python3.exe`를 끄거나 Python 실행 파일의 전체 경로로 실행합니다.
 
 PC 무선 어댑터가 `krb_set`에 붙어 있는 동안에는 같은 어댑터로 띄운 Windows 모바일 핫스팟이 꺼집니다. 그래서 `--ssid`에는 집 공유기의 2.4GHz Wi-Fi를 넣는 것이 안전합니다.
 

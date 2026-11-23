@@ -35,6 +35,8 @@ from dataclasses import dataclass, field
 
 AP_ADDRESS = ("192.168.200.1", 20000)
 SETUP_NETWORK = ipaddress.ip_network("192.168.200.0/24")
+# The setup access point hands out no address; the client must use a fixed one.
+CLIENT_ADDRESS = "192.168.200.2"
 SETUP_SSID = "krb_set"
 DEFAULT_PORT = 20000
 REPLY_TIMEOUT = 5.0
@@ -122,6 +124,19 @@ def setup_source_ip(target: tuple[str, int] | None = None) -> str | None:
     return source if ipaddress.ip_address(source) in SETUP_NETWORK else None
 
 
+NOT_ON_SETUP_AP_HELP = (
+    f"오류: {SETUP_NETWORK} 대역의 주소가 없어 조절기({AP_ADDRESS[0]})에 보낼 수 없습니다.",
+    f"- 조절기를 설정 모드로 두고(전원을 끈 상태에서 외출 버튼 5초) {SETUP_SSID}에 "
+    "연결했는지 확인하십시오.",
+    f"- {SETUP_SSID}에 연결되어 있어도 조절기는 IP를 나눠 주지 않습니다(그대로 두면 "
+    f"169.254.x.x). 무선 어댑터에 {CLIENT_ADDRESS}/24를 직접 지정하십시오.",
+    "  Windows(관리자 PowerShell, 어댑터 이름은 netsh wlan show interfaces로 확인):",
+    f'    netsh interface ipv4 set address name="Wi-Fi" static {CLIENT_ADDRESS} 255.255.255.0',
+    f"  Linux: sudo ip addr add {CLIENT_ADDRESS}/24 dev <무선 어댑터>",
+    '  끝나면 되돌리십시오(Windows: netsh interface ipv4 set address name="Wi-Fi" dhcp).',
+)
+
+
 def _exchange(payload: bytes, target: tuple[str, int], timeout: float) -> list[str]:
     replies: list[str] = []
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
@@ -197,7 +212,8 @@ def main(
 
     source = setup_source_ip()
     if source is None:
-        print(f"오류: 이 컴퓨터가 {SETUP_SSID}에 연결되어 있지 않습니다", file=sys.stderr)
+        for line in NOT_ON_SETUP_AP_HELP:
+            print(line, file=sys.stderr)
         return 2
     print(f"보낼 내용 ({source} → {AP_ADDRESS[0]}:{AP_ADDRESS[1]}, 암호는 *):")
     for line in plan.lines(mask=True):

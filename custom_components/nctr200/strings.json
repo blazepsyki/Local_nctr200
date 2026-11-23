@@ -66,7 +66,7 @@
       "invalid_host": "Enter an IPv4 address.",
       "port_in_use": "This port is in use by another program. Stop it first.",
       "invalid_provision": "The Wi-Fi name and password must be printable ASCII without commas, and the server must be an IPv4 address.",
-      "not_on_setup_ap": "This Home Assistant host is not connected to the controller's krb_set network.",
+      "not_on_setup_ap": "This Home Assistant host has no address in 192.168.200.0/24. Connect it to the controller's krb_set network and give that Wi-Fi adapter the fixed address 192.168.200.2/24; the controller hands out no address.",
       "provision_failed": "Could not send to the controller.",
       "provision_rejected": "The controller rejected the settings."
     },
